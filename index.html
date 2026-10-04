@@ -1556,7 +1556,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
     @media print {
       @page {
-        size: letter portrait;
+        size: 12in 8in;
         margin: 0.25in;
       }
 
@@ -2052,7 +2052,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
     @media print {
       @page {
-        size: Letter portrait;
+        size: 12in 8in;
         margin: 0.25in;
       }
 
@@ -2473,12 +2473,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <div>
         <div class="sf-action-bar" aria-label="Invoice actions">
           <button class="sf-button sf-button-primary" type="button" data-sf-pdf>SAVE PDF</button>
-          <button class="sf-button" type="button" data-sf-save-quote>Save Quote</button>
-          <button class="sf-button" type="button" data-sf-load-quote>Load</button>
-          <input type="file" data-sf-quote-file accept=".json,application/json" hidden>
           <button class="sf-button" type="button" data-sf-save-warranty>Save warranty</button><button class="sf-button" type="button" data-sf-clear>Clear</button>
         </div>
-        <p class="sf-quote-help" style="font-size:12px;color:#aaa">SAVE PDF fits the complete invoice on one 4 × 6-inch page at 600 DPI using lossless PNG. Print on 4 × 6 paper at Actual size (100%). Save warranty remembers your warranty text in this browser. Save Quote downloads an editable file to send back and forth. Load Quote replaces the current form. Save your current quote first. Photos must be sent separately.</p>
+        <p class="sf-quote-help" style="font-size:12px;color:#aaa">SAVE PDF opens a save prompt for your complete invoice on one 12 × 8-inch page at 600 DPI using lossless PNG. Print on 12 × 8 paper at Actual size (100%). Save warranty remembers your warranty text in this browser. </p>
         <div class="sf-status" data-sf-status role="status" aria-live="polite"></div>
       </div>
     </footer>
@@ -3147,7 +3144,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           var sourceWidth = Math.ceil(Math.max(stage.scrollWidth, stage.getBoundingClientRect().width));
           var sourceHeight = Math.ceil(Math.max(stage.scrollHeight, stage.getBoundingClientRect().height));
           // Fit the complete invoice within a 1/8-inch inset, rendered at 600 DPI.
-          var printFit = Math.min(270 / sourceWidth, 414 / sourceHeight);
+          var printFit = Math.min(846 / sourceWidth, 558 / sourceHeight);
           var exportScale = printFit * 600 / 72;
           return window.html2canvas(stage, {
             width: sourceWidth,
@@ -3159,15 +3156,15 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             logging: false
           }).then(function (canvas) {
             var PdfDocument = window.jspdf.jsPDF;
-            var documentPdf = new PdfDocument({ orientation: 'portrait', unit: 'pt', format: [288, 432], compress: true });
+            var documentPdf = new PdfDocument({ orientation: 'landscape', unit: 'pt', format: [864, 576], compress: true });
             var pageWidth = documentPdf.internal.pageSize.getWidth();
             var pageHeight = documentPdf.internal.pageSize.getHeight();
-            // Fill the entire 4-by-6-inch page, including the safe inset around the invoice.
+            // Fill the entire 12-by-8-inch page, including the safe inset around the invoice.
             // This removes white edges without stretching or clipping the content.
             documentPdf.setFillColor(2, 2, 3);
             documentPdf.rect(0, 0, pageWidth, pageHeight, 'F');
             var margin = 9;
-            // Preserve aspect ratio and fit the complete invoice inside 4-by-6-inch margins.
+            // Preserve aspect ratio and fit the complete invoice inside 12-by-8-inch margins.
             var availableWidth = pageWidth - margin * 2;
             var availableHeight = pageHeight - margin * 2;
             var fit = Math.min(availableWidth / canvas.width, availableHeight / canvas.height);
@@ -3430,34 +3427,29 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         }
       });
 
-      root.querySelector('[data-sf-save-quote]').addEventListener('click', saveQuoteFile);
       root.querySelector('[data-sf-save-warranty]').addEventListener('click', function () {
         try {
           localStorage.setItem('secretfix-saved-warranty-v1', form.elements.warranty.value);
           saveDraft(false);
-          setStatus('Warranty saved in this browser for future invoices.');
+          setStatus('Warranty saved in this browser for future invoices. This does not download a PDF.');
+          var warrantyButton = root.querySelector('[data-sf-save-warranty]');
+          warrantyButton.textContent = 'Warranty saved ✓';
+          window.setTimeout(function () { warrantyButton.textContent = 'Save warranty'; }, 4000);
         } catch (error) {
           setStatus('Warranty could not be saved. Browser storage may be disabled.', true);
         }
       });
-      root.querySelector('[data-sf-load-quote]').addEventListener('click', function () { root.querySelector('[data-sf-quote-file]').click(); });
-      root.querySelector('[data-sf-quote-file]').addEventListener('change', function (event) { loadQuoteFile(event.target.files[0]); });
       var exportDialog = document.createElement('dialog');
       exportDialog.setAttribute('aria-label', 'Export PDF');
-      exportDialog.style.cssText = 'max-width:420px;width:90%;padding:24px;background:#151515;color:white;border:1px solid #777;border-radius:12px;';
-      exportDialog.innerHTML = '<h2 style="margin-top:0">Your PDF is ready</h2><p>On iPhone, choose Share PDF, then Save to Files. On Android, share it to an app or use Download PDF.</p><div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" data-mobile-share>Share PDF</button><a data-mobile-download style="color:white" download>Download PDF</a><a data-mobile-open style="color:white" target="_blank" rel="noopener">Open PDF</a><button type="button" data-mobile-close>Close</button></div><p data-mobile-status role="status"></p>';
+      exportDialog.id = 'sf-export-dialog';
+      exportDialog.style.cssText = 'max-width:440px;width:calc(100% - 32px);max-height:85vh;overflow:auto;padding:24px;background:#151515;color:white;border:1px solid #777;border-radius:12px;font:16px/1.5 Arial,sans-serif;';
+      exportDialog.innerHTML = '<h2 style="margin-top:0">Save your PDF</h2><p>Your complete invoice is ready as a single 12 × 8-inch PDF.</p><div style="display:flex;gap:10px;flex-wrap:wrap"><a data-mobile-download style="color:white" download>Save PDF</a><button type="button" data-mobile-close>Cancel</button></div><p data-mobile-status role="status">Tap Save PDF to save the file to your device.</p>';
       document.body.appendChild(exportDialog);
+      var dialogStyle = document.createElement('style');
+      dialogStyle.textContent = '#sf-export-dialog::backdrop{background:rgba(0,0,0,.7)}#sf-export-dialog h2{font:700 24px/1.2 Arial,sans-serif}#sf-export-dialog button,#sf-export-dialog a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 14px;border:1px solid #777;border-radius:6px;background:#303030;color:#fff;font:600 14px Arial,sans-serif;text-decoration:none}#sf-export-dialog [hidden]{display:none!important}#sf-export-dialog [data-mobile-download]{background:#b90000;border-color:#b90000}#sf-export-dialog :focus-visible{outline:3px solid white;outline-offset:3px}';
+      document.head.appendChild(dialogStyle);
       var readyPdf = null, exportUrl = null;
       exportDialog.querySelector('[data-mobile-close]').onclick = function () { exportDialog.close(); };
-      exportDialog.querySelector('[data-mobile-share]').onclick = function () {
-        if (!readyPdf) return;
-        var message = exportDialog.querySelector('[data-mobile-status]');
-        navigator.share({files:[readyPdf.file],title:'Secret Fix invoice'}).then(function () {
-          message.textContent = 'PDF handed to your share menu.';
-        }).catch(function (error) {
-          message.textContent = error.name === 'AbortError' ? 'Sharing canceled. Your PDF is still ready.' : 'Sharing is unavailable. Use Download PDF or Open PDF instead.';
-        });
-      };
       root.querySelector('[data-sf-pdf]').addEventListener('click', async function () {
         var button = this;
         if (button.disabled) return;
@@ -3471,13 +3463,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           var download = exportDialog.querySelector('[data-mobile-download]');
           download.href = exportUrl;
           download.download = readyPdf.filename;
-          exportDialog.querySelector('[data-mobile-open]').href = exportUrl;
-          var canShare = false;
-          try { canShare = !!(readyPdf.file && navigator.share && navigator.canShare && navigator.canShare({files:[readyPdf.file]})); } catch (error) {}
-          exportDialog.querySelector('[data-mobile-share]').hidden = !canShare;
-          exportDialog.querySelector('[data-mobile-status]').textContent = canShare ? 'Choose how to save your 4 × 6-inch PDF.' : 'Use Download PDF, or open it and use your browser’s save/share menu.';
+          exportDialog.querySelector('[data-mobile-status]').textContent = 'Tap Save PDF to save the file to your device.';
           exportDialog.showModal();
-          setStatus('PDF ready. Choose Share, Download, or Open.');
+          setStatus('Your 12 × 8-inch PDF is ready. Confirm Save PDF in the popup.');
         } catch (error) {
           cleanupPrintStage(true);
           setStatus('The PDF could not be created. Please try again.', true);
