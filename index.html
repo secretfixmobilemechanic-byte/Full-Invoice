@@ -2475,7 +2475,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           <button class="sf-button sf-button-primary" type="button" data-sf-pdf>SAVE PDF</button>
           <button class="sf-button" type="button" data-sf-save-warranty>Save warranty</button><button class="sf-button" type="button" data-sf-clear>Clear</button>
         </div>
-        <p class="sf-quote-help" style="font-size:12px;color:#aaa">SAVE PDF opens a save prompt for your complete invoice on one 12 × 8-inch page at 600 DPI using lossless PNG. Print on 12 × 8 paper at Actual size (100%). Save warranty creates a separate warranty PDF and opens the save prompt. </p>
+        <p class="sf-quote-help" style="font-size:12px;color:#aaa">SAVE PDF opens a save prompt for your complete invoice on one 12 × 8-inch page at 600 DPI using lossless PNG. Print on 12 × 8 paper at Actual size (100%). Save warranty creates a 4 × 6-inch PDF. On iPhone, tap Save PDF in the popup, then Save to Files. </p>
         <div class="sf-status" data-sf-status role="status" aria-live="polite"></div>
       </div>
     </footer>
@@ -3429,35 +3429,35 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
       async function createWarrantyPdf() {
         await ensurePdfLibraries();
-        var pdf = new window.jspdf.jsPDF({orientation:'landscape',unit:'pt',format:[864,576],compress:true});
-        var margin=36, y=40;
+        var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'pt',format:[288,432],compress:true});
+        var margin=18, y=24;
         function heading(continued) {
-          pdf.setFont('helvetica','bold'); pdf.setFontSize(24); pdf.setTextColor(170,0,0);
-          pdf.text('SECRET FIX',margin,40);
-          pdf.setTextColor(30,30,30);pdf.setFontSize(12);
-          pdf.text('MOBILE MECHANIC | WARRANTY'+(continued?' (continued)':''),margin,59);
-          pdf.setFont('helvetica','normal');pdf.setFontSize(10);
-          pdf.text('480-410-8488 | Support@secretfix.net',margin,76);y=103;
+          pdf.setFont('helvetica','bold'); pdf.setFontSize(18); pdf.setTextColor(170,0,0);
+          pdf.text('SECRET FIX',margin,26);
+          pdf.setTextColor(30,30,30);pdf.setFontSize(8);
+          pdf.text('MOBILE MECHANIC | WARRANTY'+(continued?' (continued)':''),margin,42);
+          pdf.setFont('helvetica','normal');pdf.setFontSize(7);
+          pdf.text('480-410-8488 | Support@secretfix.net',margin,56);y=78;
         }
         function text(value,size) {
           pdf.setFont('helvetica','normal');pdf.setFontSize(size);
-          var lines=pdf.splitTextToSize(String(value),792);
+          var lines=pdf.splitTextToSize(String(value),252);
           lines.forEach(function(line){
-            if(y>530){pdf.addPage([864,576],'landscape');heading(true);pdf.setFontSize(size);}
+            if(y>408){pdf.addPage([288,432],'portrait');heading(true);pdf.setFontSize(size);}
             pdf.text(line,margin,y);y+=size*1.45;
           });
           y+=7;
         }
         function field(name){return form.elements[name] ? form.elements[name].value.trim() : '';}
         heading(false);
-        text('Invoice: '+currentInvoiceNumber()+'     Date: '+field('invoiceDate'),11);
-        text('Customer: '+(field('customerName')||'____________________'),11);
+        text('Invoice: '+currentInvoiceNumber()+'     Date: '+field('invoiceDate'),9);
+        text('Customer: '+(field('customerName')||'____________________'),9);
         var vehicle=['vehicleYear','vehicleMake','vehicleModel','vehicleEngine'].map(field).filter(Boolean).join(' ');
-        if(vehicle)text('Vehicle: '+vehicle,11);
-        if(field('vin'))text('VIN: '+field('vin'),11);
-        if(field('mileage'))text('Mileage: '+field('mileage'),11);
-        text('WARRANTY TERMS',13);
-        text(field('warranty'),12);
+        if(vehicle)text('Vehicle: '+vehicle,9);
+        if(field('vin'))text('VIN: '+field('vin'),9);
+        if(field('mileage'))text('Mileage: '+field('mileage'),9);
+        text('WARRANTY TERMS',10);
+        text(field('warranty'),9);
         return {blob:pdf.output('blob'),filename:'Secret-Fix-Warranty-'+currentInvoiceNumber().replace(/[^a-zA-Z0-9_-]/g,'-')+'.pdf'};
       }
       root.querySelector('[data-sf-save-warranty]').addEventListener('click', async function () {
@@ -3471,9 +3471,22 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           exportUrl=URL.createObjectURL(warrantyPdf.blob);
           var link=exportDialog.querySelector('[data-mobile-download]');
           link.href=exportUrl;link.download=warrantyPdf.filename;
+          link.textContent='Save PDF';
+          var warrantyFile = new File([warrantyPdf.blob], warrantyPdf.filename, {type:'application/pdf'});
+          var iphone = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+          var shareSupported = false;
+          try { shareSupported = !!(iphone && navigator.share && navigator.canShare && navigator.canShare({files:[warrantyFile]})); } catch(e) {}
+          link.onclick = shareSupported ? function(event) {
+            event.preventDefault();
+            navigator.share({files:[warrantyFile],title:'Secret Fix warranty'}).catch(function(error){
+              if(error.name==='AbortError')return;
+              link.onclick=null;
+              exportDialog.querySelector('[data-mobile-status]').textContent='Sharing is unavailable. Tap Save PDF again to download directly.';
+            });
+          } : null;
           exportDialog.querySelector('h2').textContent='Save your warranty PDF';
-          exportDialog.querySelector('p').textContent='Your warranty PDF is ready on 12 × 8-inch pages.';
-          exportDialog.querySelector('[data-mobile-status]').textContent='Tap Save PDF to download your warranty.';
+          exportDialog.querySelector('p').textContent='Your warranty PDF is ready on 4 × 6-inch pages.';
+          exportDialog.querySelector('[data-mobile-status]').textContent=shareSupported ? 'Tap Save PDF, then choose Save to Files on your iPhone.' : 'Tap Save PDF to download your 4 × 6-inch warranty.';
           exportDialog.showModal();
           setStatus('Warranty PDF ready. Tap Save PDF in the popup to download.');
         } catch(error){setStatus('The warranty PDF could not be created. Please try again.',true);}
@@ -3501,6 +3514,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           if (exportUrl) URL.revokeObjectURL(exportUrl);
           exportUrl = URL.createObjectURL(readyPdf.blob);
           var download = exportDialog.querySelector('[data-mobile-download]');
+          download.onclick = null;
           download.href = exportUrl;
           download.download = readyPdf.filename;
           exportDialog.querySelector('[data-mobile-status]').textContent = 'Tap Save PDF to save the file to your device.';
