@@ -2475,7 +2475,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           <button class="sf-button sf-button-primary" type="button" data-sf-pdf>SAVE PDF</button>
           <button class="sf-button" type="button" data-sf-save-warranty>Save warranty</button><button class="sf-button" type="button" data-sf-clear>Clear</button>
         </div>
-        <p class="sf-quote-help" style="font-size:12px;color:#aaa">SAVE PDF opens a save prompt for your complete invoice on one 12 × 8-inch page at 600 DPI using lossless PNG. Print on 12 × 8 paper at Actual size (100%). Save warranty remembers your warranty text in this browser. </p>
+        <p class="sf-quote-help" style="font-size:12px;color:#aaa">SAVE PDF opens a save prompt for your complete invoice on one 12 × 8-inch page at 600 DPI using lossless PNG. Print on 12 × 8 paper at Actual size (100%). Save warranty creates a separate warranty PDF and opens the save prompt. </p>
         <div class="sf-status" data-sf-status role="status" aria-live="polite"></div>
       </div>
     </footer>
@@ -3427,17 +3427,57 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         }
       });
 
-      root.querySelector('[data-sf-save-warranty]').addEventListener('click', function () {
-        try {
-          localStorage.setItem('secretfix-saved-warranty-v1', form.elements.warranty.value);
-          saveDraft(false);
-          setStatus('Warranty saved in this browser for future invoices. This does not download a PDF.');
-          var warrantyButton = root.querySelector('[data-sf-save-warranty]');
-          warrantyButton.textContent = 'Warranty saved ✓';
-          window.setTimeout(function () { warrantyButton.textContent = 'Save warranty'; }, 4000);
-        } catch (error) {
-          setStatus('Warranty could not be saved. Browser storage may be disabled.', true);
+      async function createWarrantyPdf() {
+        await ensurePdfLibraries();
+        var pdf = new window.jspdf.jsPDF({orientation:'landscape',unit:'pt',format:[864,576],compress:true});
+        var margin=36, y=40;
+        function heading(continued) {
+          pdf.setFont('helvetica','bold'); pdf.setFontSize(24); pdf.setTextColor(170,0,0);
+          pdf.text('SECRET FIX',margin,40);
+          pdf.setTextColor(30,30,30);pdf.setFontSize(12);
+          pdf.text('MOBILE MECHANIC | WARRANTY'+(continued?' (continued)':''),margin,59);
+          pdf.setFont('helvetica','normal');pdf.setFontSize(10);
+          pdf.text('480-410-8488 | Support@secretfix.net',margin,76);y=103;
         }
+        function text(value,size) {
+          pdf.setFont('helvetica','normal');pdf.setFontSize(size);
+          var lines=pdf.splitTextToSize(String(value),792);
+          lines.forEach(function(line){
+            if(y>530){pdf.addPage([864,576],'landscape');heading(true);pdf.setFontSize(size);}
+            pdf.text(line,margin,y);y+=size*1.45;
+          });
+          y+=7;
+        }
+        function field(name){return form.elements[name] ? form.elements[name].value.trim() : '';}
+        heading(false);
+        text('Invoice: '+currentInvoiceNumber()+'     Date: '+field('invoiceDate'),11);
+        text('Customer: '+(field('customerName')||'____________________'),11);
+        var vehicle=['vehicleYear','vehicleMake','vehicleModel','vehicleEngine'].map(field).filter(Boolean).join(' ');
+        if(vehicle)text('Vehicle: '+vehicle,11);
+        if(field('vin'))text('VIN: '+field('vin'),11);
+        if(field('mileage'))text('Mileage: '+field('mileage'),11);
+        text('WARRANTY TERMS',13);
+        text(field('warranty'),12);
+        return {blob:pdf.output('blob'),filename:'Secret-Fix-Warranty-'+currentInvoiceNumber().replace(/[^a-zA-Z0-9_-]/g,'-')+'.pdf'};
+      }
+      root.querySelector('[data-sf-save-warranty]').addEventListener('click', async function () {
+        var button=this;
+        if(button.disabled)return;
+        if(!form.elements.warranty.value.trim()){setStatus('Enter your warranty terms before saving the PDF.',true);form.elements.warranty.focus();return;}
+        button.disabled=true;button.textContent='PREPARING WARRANTY...';button.setAttribute('aria-busy','true');
+        try {
+          var warrantyPdf=await createWarrantyPdf();
+          if(exportUrl)URL.revokeObjectURL(exportUrl);
+          exportUrl=URL.createObjectURL(warrantyPdf.blob);
+          var link=exportDialog.querySelector('[data-mobile-download]');
+          link.href=exportUrl;link.download=warrantyPdf.filename;
+          exportDialog.querySelector('h2').textContent='Save your warranty PDF';
+          exportDialog.querySelector('p').textContent='Your warranty PDF is ready on 12 × 8-inch pages.';
+          exportDialog.querySelector('[data-mobile-status]').textContent='Tap Save PDF to download your warranty.';
+          exportDialog.showModal();
+          setStatus('Warranty PDF ready. Tap Save PDF in the popup to download.');
+        } catch(error){setStatus('The warranty PDF could not be created. Please try again.',true);}
+        finally{button.disabled=false;button.removeAttribute('aria-busy');button.textContent='Save warranty';}
       });
       var exportDialog = document.createElement('dialog');
       exportDialog.setAttribute('aria-label', 'Export PDF');
@@ -3464,6 +3504,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           download.href = exportUrl;
           download.download = readyPdf.filename;
           exportDialog.querySelector('[data-mobile-status]').textContent = 'Tap Save PDF to save the file to your device.';
+          exportDialog.querySelector('h2').textContent='Save your invoice PDF';
+          exportDialog.querySelector('p').textContent='Your complete invoice is ready as a single 12 × 8-inch PDF.';
           exportDialog.showModal();
           setStatus('Your 12 × 8-inch PDF is ready. Confirm Save PDF in the popup.');
         } catch (error) {
