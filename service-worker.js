@@ -1,4 +1,8 @@
-﻿const CACHE_NAME = 'secret-fix-invoice-v2';
+
+/* Secret Fix Invoice Maker — scoped, network-first navigation */
+
+const CACHE_NAME = 'secret-fix-full-invoice-v3';
+
 const APP_FILES = [
   './',
   './index.html',
@@ -9,33 +13,83 @@ const APP_FILES = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_FILES)));
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(APP_FILES))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
+      .then(keys => Promise.all(
+        keys
+          .filter(key =>
+            key.startsWith('secret-fix-') &&
+            key !== CACHE_NAME
+          )
+          .map(key => caches.delete(key))
+      ))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') return;
+  const request = event.request;
+
+  if (
+    request.method !== 'GET' ||
+    new URL(request.url).origin !== self.location.origin
+  ) return;
+
+  const scope = new URL(self.registration.scope);
+
+  if (
+    !new URL(request.url).pathname.startsWith(scope.pathname)
+  ) return;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response.ok) {
+            const copy = response.clone();
+
+            event.waitUntil(
+              caches.open(CACHE_NAME)
+                .then(cache => cache.put(request, copy))
+            );
+          }
+
+          return response;
+        })
+        .catch(() =>
+          caches.match(request)
+            .then(cached =>
+              cached || caches.match('./index.html')
+            )
+        )
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        if (!response || response.status !== 200 || response.type === 'opaque') return response;
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-        return response;
-      }).catch(() => {
-        if (event.request.mode === 'navigate') return caches.match('./index.html');
-        return Response.error();
-      });
-    })
+    caches.match(request)
+      .then(cached =>
+        cached || fetch(request)
+          .then(response => {
+            if (response.ok) {
+              const copy = response.clone();
+
+              event.waitUntil(
+                caches.open(CACHE_NAME)
+                  .then(cache => cache.put(request, copy))
+              );
+            }
+
+            return response;
+          })
+      )
   );
 });
-
